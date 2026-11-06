@@ -104,6 +104,108 @@ fn confirm_project_action(bytes: &[u8], name: &str, action: ProjectAction) -> Re
     Ok(())
 }
 
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Service {
+    pub name: String,
+    #[serde(default)]
+    pub running: bool,
+    #[serde(default)]
+    pub port: i64,
+    #[serde(default)]
+    pub running_source: String,
+}
+
+#[derive(Debug, Deserialize)]
+struct ProjectDetails {
+    name: String,
+    #[serde(default)]
+    services: Vec<Service>,
+}
+
+/// Read service details using the CLI's resolved project view, rather than
+/// guessing names from the aggregate lpm list output.
+pub fn list_services(project: &str) -> Result<Vec<Service>, String> {
+    if project.trim().is_empty() {
+        return Err("Cannot list services for an empty project".into());
+    }
+    let executable = std::env::var_os("HIDE_LPM_CLI").unwrap_or_else(|| "lpm".into());
+    let output = Command::new(executable)
+        .args(["project", project, "--json"])
+        .output()
+        .map_err(|error| format!("Cannot launch lpm CLI: {error}"))?;
+    if !output.status.success() {
+        return Err(format!(
+            "lpm project failed ({}): {}",
+            output.status,
+            String::from_utf8_lossy(&output.stderr).trim()
+        ));
+    }
+    parse_services(&output.stdout, project)
+}
+
+fn parse_services(bytes: &[u8], project: &str) -> Result<Vec<Service>, String> {
+    let details: ProjectDetails = serde_json::from_slice(bytes)
+        .map_err(|error| format!("Invalid lpm project response: {error}"))?;
+    if details.name != project {
+        return Err("lpm project returned a different project".into());
+    }
+    Ok(details.services)
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ServiceAction {
+    Start,
+    Stop,
+    Restart,
+}
+
+impl ServiceAction {
+    fn verb(self) -> &'static str {
+        match self {
+            Self::Start => "start",
+            Self::Stop => "stop",
+            Self::Restart => "restart",
+        }
+    }
+}
+
+/// Delegate service mutations to the running desktop app through the existing
+/// CLI/socket contract. The UI never becomes a second service owner.
+pub fn change_service_state(project: &str, service: &str, action: ServiceAction) -> Result<(), String> {
+    if project.trim().is_empty() || service.trim().is_empty() {
+        return Err("Project and service names must not be empty".into());
+    }
+    let executable = std::env::var_os("HIDE_LPM_CLI").unwrap_or_else(|| "lpm".into());
+    let output = Command::new(executable)
+        .args(["service", service, action.verb(), "-p", project, "--json"])
+        .output()
+        .map_err(|error| format!("Cannot launch lpm CLI: {error}"))?;
+    if !output.status.success() {
+        return Err(format!(
+            "lpm service {} failed ({}): {}",
+            action.verb(),
+            output.status,
+            String::from_utf8_lossy(&output.stderr).trim()
+        ));
+    }
+    confirm_service_action(&output.stdout, project, service, action)
+}
+
+fn confirm_service_action(bytes: &[u8], project: &str, service: &str, action: ServiceAction) -> Result<(), String> {
+    let response: serde_json::Value = serde_json::from_slice(bytes)
+        .map_err(|error| format!("Invalid lpm service response: {error}"))?;
+    if response.get("ok").and_then(serde_json::Value::as_bool) != Some(true)
+        || response.get("project").and_then(serde_json::Value::as_str) != Some(project)
+        || response.get("service").and_then(serde_json::Value::as_str) != Some(service)
+        || response.get("op").and_then(serde_json::Value::as_str) != Some(action.verb())
+    {
+        return Err("lpm service did not confirm the requested operation".into());
+    }
+    Ok(())
+}
+
 impl Project {
     /// Human-readable summary from the same JSON contract as the existing CLI.
     pub fn agent_summary(&self) -> Option<String> {
@@ -124,6 +226,28 @@ fn parse_projects(bytes: &[u8]) -> Result<Vec<Project>, String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn parses_project_services_from_existing_cli_contract() {
+        let bytes = br#"{"name":"api","services":[{"name":"web","running":true,"port":3000,"runningSource":"port"},{"name":"worker","running":false}]}"#;
+        let services = parse_services(bytes, "api").unwrap();
+        assert_eq!(services.len(), 2);
+        assert_eq!(services[0].name, "web");
+        assert_eq!(services[0].port, 3000);
+        assert!(services[0].running);
+        assert!(!services[1].running);
+        assert!(parse_services(bytes, "other").is_err());
+    }
+
+    #[test]
+    fn service_acknowledgement_must_match_all_fields() {
+        let bytes = br#"{"ok":true,"project":"api","service":"web","op":"restart"}"#;
+        assert!(confirm_service_action(bytes, "api", "web", ServiceAction::Restart).is_ok());
+        assert!(confirm_service_action(bytes, "api", "worker", ServiceAction::Restart).is_err());
+        assert!(confirm_service_action(bytes, "api", "web", ServiceAction::Stop).is_err());
+        assert!(confirm_service_action(b"{}", "api", "web", ServiceAction::Restart).is_err());
+        assert!(change_service_state("api", " ", ServiceAction::Start).is_err());
+    }
 
     #[test]
     fn actions_use_existing_cli_verbs() {
