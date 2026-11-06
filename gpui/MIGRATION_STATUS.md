@@ -45,6 +45,15 @@
 - `cargo` and `rustc` are absent in the current execution container; no compile/test success claimed. Service commands execute synchronously and may block the GPUI UI thread; move to background tasks once the crate compiles.
 - Next: obtain a successful macOS CI build, fix GPUI API/borrow errors, then make service requests asynchronous and implement terminal/PTY state updates.
 
+
+## Run 4 progress (2026-11-07)
+- Added typed live pane metadata (`id`, `title`, `currentCommand`, `currentPath`, `pid`, `ended`) from the existing `lpm project <name> --json` contract, alongside services in one project snapshot. No new daemon or duplicate PTY ownership.
+- Native GPUI project detail now lists pane titles and active commands/ended state; actual PTY output/input remains unimplemented and is clearly labeled.
+- Added parser test for live panes, missing optional fields, and wrong-project responses. Source contract inspected in `cli/src/project.rs` on the migration branch.
+- Committed changes `8664eea` and `6c9ddfa` to the migration branch.
+- Validation: no local `cargo`/`rustc` available and `git` cannot resolve github.com in the execution container. GitHub Actions macOS workflow for commit `6c9ddfa` was **queued** at last inspection (run https://github.com/hlabin/hide/actions/runs/42311060187); older runs failed before compilation. No passing build or tests claimed.
+- Next: inspect new CI run and fix any compile errors; move blocking CLI reads and mutations off the GPUI UI thread; implement a native PTY transport/renderer without duplicating the existing session owner.
+
 ## Next incremental milestone
 1. Run `cargo check` with Rust >=1.95 in an environment with GPUI's native build requirements. Fix actual compile errors before expanding functionality.
 2. Extract Tauri-independent backend functionality into a shared Rust crate or maintain a deliberate RPC bridge to the existing desktop daemon. Do **not** use duplicate ownership of sessions.
