@@ -1,6 +1,6 @@
 mod backend;
 
-use backend::{Project, ProjectAction};
+use backend::{Project, ProjectAction, Service, ServiceAction};
 use gpui::{
     App, Bounds, Context, IntoElement, QuitMode, Render, Window, WindowBounds, WindowOptions,
     div, prelude::*, px, rgb, size,
@@ -40,6 +40,8 @@ impl Palette {
 struct HideApp {
     projects: Vec<Project>,
     selected: Option<String>,
+    services: Vec<Service>,
+    service_error: Option<String>,
     error: Option<String>,
     dark: bool,
 }
@@ -47,7 +49,7 @@ struct HideApp {
 impl HideApp {
     fn new() -> Self {
         let mut this = Self {
-            projects: vec![], selected: None, error: None, dark: true,
+            projects: vec![], selected: None, services: vec![], service_error: None, error: None, dark: true,
         };
         this.refresh();
         this
@@ -61,8 +63,27 @@ impl HideApp {
                 }
                 self.projects = projects;
                 self.error = None;
+                self.refresh_services();
             }
             Err(error) => self.error = Some(error),
+        }
+    }
+
+    fn refresh_services(&mut self) {
+        let Some(name) = self.selected.as_deref() else {
+            self.services.clear();
+            self.service_error = None;
+            return;
+        };
+        match backend::list_services(name) {
+            Ok(services) => {
+                self.services = services;
+                self.service_error = None;
+            }
+            Err(error) => {
+                self.services.clear();
+                self.service_error = Some(error);
+            }
         }
     }
 }
@@ -157,6 +178,7 @@ impl Render for HideApp {
                                             .child(label)
                                             .on_click(cx.listener(move |this, _, _, cx| {
                                                 this.selected = Some(name.clone());
+                                                this.refresh_services();
                                                 cx.notify();
                                             }))
                                     }))
@@ -210,6 +232,48 @@ impl Render for HideApp {
                                             }))
                                     )
                             )
+                            .child(
+                                div().px_6().py_2().text_color(rgb(c.muted))
+                                    .child("SERVICES")
+                            )
+                            .children(self.services.iter().map(|service| {
+                                let service_name = service.name.clone();
+                                let project_name = self.selected.clone().unwrap_or_default();
+                                let running = service.running;
+                                let port = if service.port > 0 {
+                                    format!(" :{}", service.port)
+                                } else {
+                                    String::new()
+                                };
+                                div().mx_6().mb_1().px_3().py_2().rounded_md()
+                                    .bg(rgb(c.secondary)).flex().items_center().justify_between()
+                                    .child(
+                                        div().flex().gap_2().items_center()
+                                            .child(
+                                                div().text_color(rgb(if running { 0x4ade80 } else { c.muted }))
+                                                    .child(if running { "●" } else { "○" })
+                                            )
+                                            .child(format!("{}{}", service.name, port))
+                                    )
+                                    .child(
+                                        div().id(("service-control", service.name.clone()))
+                                            .cursor_pointer().rounded_md().bg(rgb(c.hover))
+                                            .px_2().py_1()
+                                            .child(if running { "Stop" } else { "Start" })
+                                            .on_click(cx.listener(move |this, _, _, cx| {
+                                                let action = if running { ServiceAction::Stop } else { ServiceAction::Start };
+                                                match backend::change_service_state(&project_name, &service_name, action) {
+                                                    Ok(()) => this.refresh(),
+                                                    Err(error) => this.service_error = Some(error),
+                                                }
+                                                cx.notify();
+                                            }))
+                                    )
+                            }))
+                            .children(self.service_error.iter().map(|error| {
+                                div().px_6().py_2().text_color(rgb(0xf87171))
+                                    .child(format!("Services: {error}"))
+                            }))
                             .child(
                                 div().flex_1().m_6().rounded_md()
                                     .border_1().border_color(rgb(c.border))
