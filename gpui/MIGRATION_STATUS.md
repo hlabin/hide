@@ -16,6 +16,8 @@
 - [x] Added unit tests for successful, empty and invalid CLI listing JSON.
 - [x] Added project start/stop through existing `lpm start/stop <name> --json` control CLI (no duplicate daemon/session owner), wired into native project detail view. Added action verb and invalid-name tests.
 - [x] Added `gpui/README.md` with build instructions and explicit limitations.
+- [x] Parsed agent status counts and worktree flags from the existing CLI JSON; native project detail now shows agent summary, remote/worktree type, and per-project config errors.
+- [x] Hardened start/stop control acknowledgement: require `ok: true` AND an exact matching project name, with unit tests for wrong project, rejected action and malformed JSON.
 
 ## Build and test status
 - [x] Added `.github/workflows/gpui.yml` for macOS `cargo check` and `cargo test` on migration changes. Runs were cancelled before any steps: https://github.com/hlabin/hide/actions/runs/42279310963 and https://github.com/hlabin/hide/actions/runs/42279301147.
@@ -25,6 +27,12 @@
 - [ ] Screenshot-based visual regression against running Tauri app (NOT RUN).
 - [ ] Rust backend integration/PTY feature parity (NOT DONE).
 - Current GPUI app is **experimental** and must not be described as working, error-free or release-ready without the above checks.
+
+## Run 2 verification (2026-11-07)
+- Source contract checked against `cli/src/list.rs`, `cli/src/start.rs`, and `cli/src/stop.rs` on the migration branch.
+- Source changes committed to this branch; Cargo/Rust unavailable in the execution container, so the new unit tests and GPUI compilation remain **unrun**.
+- Latest observed GitHub Actions runs for this branch ended `failure` with cancelled jobs; this run did not establish working macOS runner execution. No successful CI build is claimed.
+- Next: restore CI runner availability and run `cargo check`/`cargo test`; address any compiler errors before claiming native functionality works. Then wire service-level controls and live updates.
 
 ## Blockers observed
 - GitHub Actions runs 42279310963, 42279301147, 42279205217 and 42279205007 all finished with failure status and a **cancelled** macOS job; no build/test steps ran. Job logs were unavailable (404 BlobNotFound). This is not evidence of a Rust compilation error. Check repository Actions policy, available macOS runners, billing and job cancellation rules; rerun after restoring runner execution.
