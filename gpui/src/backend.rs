@@ -2,6 +2,7 @@
 //! The Tauri app remains the process owner; this client does not silently
 //! initialize another daemon or duplicate project mutations.
 use serde::Deserialize;
+use std::collections::BTreeMap;
 use std::process::Command;
 
 #[derive(Debug, Clone, Deserialize)]
@@ -21,6 +22,10 @@ pub struct Project {
     #[serde(default)]
     pub is_remote: bool,
     pub error: Option<String>,
+    #[serde(default)]
+    pub agents: Option<BTreeMap<String, usize>>,
+    #[serde(default)]
+    pub worktree: bool,
 }
 
 #[derive(Debug, Deserialize)]
@@ -82,12 +87,32 @@ pub fn change_project_state(name: &str, action: ProjectAction) -> Result<(), Str
             String::from_utf8_lossy(&output.stderr).trim()
         ));
     }
-    let response: serde_json::Value = serde_json::from_slice(&output.stdout)
+    confirm_project_action(&output.stdout, name, action)
+}
+
+/// Only accept a successful response for the project we actually requested.
+/// This also protects against accidentally trusting unrelated CLI JSON.
+fn confirm_project_action(bytes: &[u8], name: &str, action: ProjectAction) -> Result<(), String> {
+    let response: serde_json::Value = serde_json::from_slice(bytes)
         .map_err(|error| format!("Invalid lpm {} response: {error}", action.verb()))?;
     if response.get("ok").and_then(serde_json::Value::as_bool) != Some(true) {
         return Err(format!("lpm {} did not confirm success", action.verb()));
     }
+    if response.get("project").and_then(serde_json::Value::as_str) != Some(name) {
+        return Err(format!("lpm {} confirmed a different project", action.verb()));
+    }
     Ok(())
+}
+
+impl Project {
+    /// Human-readable summary from the same JSON contract as the existing CLI.
+    pub fn agent_summary(&self) -> Option<String> {
+        let agents = self.agents.as_ref()?;
+        if agents.is_empty() { return None; }
+        Some(agents.iter().map(|(status, count)| {
+            format!("{count} {}", status.to_lowercase())
+        }).collect::<Vec<_>>().join(", "))
+    }
 }
 
 fn parse_projects(bytes: &[u8]) -> Result<Vec<Project>, String> {
@@ -115,6 +140,22 @@ mod tests {
     fn rejects_unconfirmed_cli_output() {
         let result: serde_json::Value = serde_json::from_slice(br#"{"ok":false}"#).unwrap();
         assert_ne!(result.get("ok").and_then(serde_json::Value::as_bool), Some(true));
+    }
+
+    #[test]
+    fn action_response_must_match_project() {
+        assert!(confirm_project_action(br#"{"ok":true,"project":"api"}"#, "api", ProjectAction::Start).is_ok());
+        assert!(confirm_project_action(br#"{"ok":true,"project":"other"}"#, "api", ProjectAction::Start).is_err());
+        assert!(confirm_project_action(br#"{"ok":false,"project":"api"}"#, "api", ProjectAction::Stop).is_err());
+        assert!(confirm_project_action(b"not json", "api", ProjectAction::Stop).is_err());
+    }
+
+    #[test]
+    fn agent_summary_uses_sorted_status_counts() {
+        let data = br#"{"projects":[{"name":"api","agents":{"Waiting":1,"Running":2},"worktree":true}]}"#;
+        let projects = parse_projects(data).unwrap();
+        assert_eq!(projects[0].agent_summary().as_deref(), Some("2 running, 1 waiting"));
+        assert!(projects[0].worktree);
     }
 
     #[test]
