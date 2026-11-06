@@ -17,8 +17,9 @@
 - [x] Added `gpui/README.md` with build instructions and explicit limitations.
 
 ## Build and test status
-- [ ] `cargo check --manifest-path gpui/Cargo.toml` (NOT RUN; Rust/Cargo are unavailable in the current execution container).
-- [ ] `cargo test --manifest-path gpui/Cargo.toml` (NOT RUN for same reason).
+- [x] Added `.github/workflows/gpui.yml` for macOS `cargo check` and `cargo test` on migration changes. Workflow runs queued: https://github.com/hlabin/hide/actions/runs/42279205217 and https://github.com/hlabin/hide/actions/runs/42279205007.
+- [ ] `cargo check --manifest-path gpui/Cargo.toml` (GitHub Actions macOS check queued; Rust/Cargo unavailable in this execution container).
+- [ ] `cargo test --manifest-path gpui/Cargo.toml` (GitHub Actions macOS test queued; outcome not verified).
 - [ ] Native smoke test on macOS and Linux/Windows (NOT RUN).
 - [ ] Screenshot-based visual regression against running Tauri app (NOT RUN).
 - [ ] Rust backend integration/PTY feature parity (NOT DONE).
