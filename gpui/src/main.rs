@@ -1,6 +1,6 @@
 mod backend;
 
-use backend::Project;
+use backend::{Project, ProjectAction};
 use gpui::{
     App, Bounds, Context, IntoElement, QuitMode, Render, Window, WindowBounds, WindowOptions,
     div, prelude::*, px, rgb, size,
@@ -75,6 +75,8 @@ impl Render for HideApp {
             if p.label.is_empty() { p.name.clone() } else { p.label.clone() }
         }).unwrap_or_else(|| "No project selected".into());
         let project_root = selected.map(|p| p.root.clone()).unwrap_or_default();
+        let selected_name = self.selected.clone();
+        let project_running = selected.is_some_and(|p| p.running);
         let service_status = selected.map(|p| format!("{}/{} services running", p.services_running, p.services_total))
             .unwrap_or_else(|| "Add a project in the existing lpm application".into());
 
@@ -169,6 +171,25 @@ impl Render for HideApp {
                             )
                             .child(
                                 div().px_6().py_2().child(service_status)
+                            )
+                            .child(
+                                div().px_6().py_2().flex().gap_2()
+                                    .child(
+                                        div().id("project-control")
+                                            .cursor_pointer().px_3().py_2()
+                                            .rounded_md().bg(rgb(c.hover))
+                                            .child(if project_running { "Stop project" } else { "Start project" })
+                                            .on_click(cx.listener(move |this, _, _, cx| {
+                                                if let Some(name) = selected_name.as_deref() {
+                                                    let action = if project_running { ProjectAction::Stop } else { ProjectAction::Start };
+                                                    match backend::change_project_state(name, action) {
+                                                        Ok(()) => this.refresh(),
+                                                        Err(error) => this.error = Some(error),
+                                                    }
+                                                    cx.notify();
+                                                }
+                                            }))
+                                    )
                             )
                             .child(
                                 div().flex_1().m_6().rounded_md()
