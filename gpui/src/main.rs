@@ -77,6 +77,14 @@ impl Render for HideApp {
         let project_root = selected.map(|p| p.root.clone()).unwrap_or_default();
         let selected_name = self.selected.clone();
         let project_running = selected.is_some_and(|p| p.running);
+        let project_error = selected.and_then(|p| p.error.clone());
+        let project_agents = selected.and_then(|p| p.agent_summary());
+        let project_kind = selected.map(|p| match (p.is_remote, p.worktree) {
+            (true, true) => "Remote worktree",
+            (true, false) => "Remote project",
+            (false, true) => "Local worktree",
+            (false, false) => "Local project",
+        }).unwrap_or("No project");
         let service_status = selected.map(|p| format!("{}/{} services running", p.services_running, p.services_total))
             .unwrap_or_else(|| "Add a project in the existing lpm application".into());
 
@@ -172,6 +180,17 @@ impl Render for HideApp {
                             .child(
                                 div().px_6().py_2().child(service_status)
                             )
+                            .child(
+                                div().px_6().py_1().text_color(rgb(c.muted)).child(project_kind)
+                            )
+                            .children(project_agents.into_iter().map(|agents| {
+                                div().px_6().py_1().text_color(rgb(c.muted))
+                                    .child(format!("Agents: {agents}"))
+                            }))
+                            .children(project_error.into_iter().map(|error| {
+                                div().px_6().py_1().text_color(rgb(0xf87171))
+                                    .child(format!("Project config: {error}"))
+                            }))
                             .child(
                                 div().px_6().py_2().flex().gap_2()
                                     .child(
