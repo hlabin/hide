@@ -1,6 +1,6 @@
 mod backend;
 
-use backend::{Project, ProjectAction, Service, ServiceAction};
+use backend::{Pane, Project, ProjectAction, Service, ServiceAction};
 use gpui::{
     App, Bounds, Context, IntoElement, QuitMode, Render, Window, WindowBounds, WindowOptions,
     div, prelude::*, px, rgb, size,
@@ -41,6 +41,7 @@ struct HideApp {
     projects: Vec<Project>,
     selected: Option<String>,
     services: Vec<Service>,
+    panes: Vec<Pane>,
     service_error: Option<String>,
     error: Option<String>,
     dark: bool,
@@ -49,7 +50,7 @@ struct HideApp {
 impl HideApp {
     fn new() -> Self {
         let mut this = Self {
-            projects: vec![], selected: None, services: vec![], service_error: None, error: None, dark: true,
+            projects: vec![], selected: None, services: vec![], panes: vec![], service_error: None, error: None, dark: true,
         };
         this.refresh();
         this
@@ -72,16 +73,19 @@ impl HideApp {
     fn refresh_services(&mut self) {
         let Some(name) = self.selected.as_deref() else {
             self.services.clear();
+            self.panes.clear();
             self.service_error = None;
             return;
         };
-        match backend::list_services(name) {
-            Ok(services) => {
-                self.services = services;
+        match backend::list_project_snapshot(name) {
+            Ok(snapshot) => {
+                self.services = snapshot.services;
+                self.panes = snapshot.panes;
                 self.service_error = None;
             }
             Err(error) => {
                 self.services.clear();
+                self.panes.clear();
                 self.service_error = Some(error);
             }
         }
@@ -282,11 +286,32 @@ impl Render for HideApp {
                                     .child(
                                         div().px_3().py_2().bg(rgb(c.secondary))
                                             .border_b_1().border_color(rgb(c.border))
-                                            .child("Terminal")
+                                            .child(format!("Terminals ({} live panes)", self.panes.len()))
                                     )
+                                    .children(self.panes.iter().map(|pane| {
+                                        let title = if pane.title.is_empty() {
+                                            pane.id.clone()
+                                        } else {
+                                            pane.title.clone()
+                                        };
+                                        let activity = if pane.ended {
+                                            "Ended".to_string()
+                                        } else if pane.current_command.is_empty() {
+                                            "Idle".to_string()
+                                        } else {
+                                            pane.current_command.clone()
+                                        };
+                                        div().mx_3().mt_2().px_3().py_2().rounded_md()
+                                            .bg(rgb(c.secondary)).flex().justify_between()
+                                            .child(title)
+                                            .child(
+                                                div().text_color(rgb(c.muted))
+                                                    .child(activity)
+                                            )
+                                    }))
                                     .child(
                                         div().px_4().py_4().text_color(rgb(c.muted))
-                                            .child("Native terminal/PTY rendering is not yet migrated.")
+                                            .child("Pane metadata is live; native PTY display and input are not yet migrated.")
                                     )
                             )
                             .children(self.error.iter().map(|e| {
