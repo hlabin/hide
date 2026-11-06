@@ -122,11 +122,37 @@ struct ProjectDetails {
     name: String,
     #[serde(default)]
     services: Vec<Service>,
+    #[serde(default)]
+    panes: Vec<Pane>,
+}
+
+/// Live terminal pane metadata from `lpm project --json`.
+/// No PTY contents are exposed by this endpoint.
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Pane {
+    pub id: String,
+    #[serde(default)]
+    pub title: String,
+    #[serde(default)]
+    pub current_command: String,
+    #[serde(default)]
+    pub current_path: String,
+    #[serde(default)]
+    pub ended: bool,
+    #[serde(default)]
+    pub pid: i64,
+}
+
+#[derive(Debug, Clone)]
+pub struct ProjectSnapshot {
+    pub services: Vec<Service>,
+    pub panes: Vec<Pane>,
 }
 
 /// Read service details using the CLI's resolved project view, rather than
 /// guessing names from the aggregate lpm list output.
-pub fn list_services(project: &str) -> Result<Vec<Service>, String> {
+pub fn list_project_snapshot(project: &str) -> Result<ProjectSnapshot, String> {
     if project.trim().is_empty() {
         return Err("Cannot list services for an empty project".into());
     }
@@ -142,16 +168,27 @@ pub fn list_services(project: &str) -> Result<Vec<Service>, String> {
             String::from_utf8_lossy(&output.stderr).trim()
         ));
     }
-    parse_services(&output.stdout, project)
+    parse_project_snapshot(&output.stdout, project)
 }
 
-fn parse_services(bytes: &[u8], project: &str) -> Result<Vec<Service>, String> {
+/// Compatibility helper for callers that only need services.
+#[allow(dead_code)]
+pub fn list_services(project: &str) -> Result<Vec<Service>, String> {
+    list_project_snapshot(project).map(|snapshot| snapshot.services)
+}
+
+fn parse_project_snapshot(bytes: &[u8], project: &str) -> Result<ProjectSnapshot, String> {
     let details: ProjectDetails = serde_json::from_slice(bytes)
         .map_err(|error| format!("Invalid lpm project response: {error}"))?;
     if details.name != project {
         return Err("lpm project returned a different project".into());
     }
-    Ok(details.services)
+    Ok(ProjectSnapshot { services: details.services, panes: details.panes })
+}
+
+#[cfg(test)]
+fn parse_services(bytes: &[u8], project: &str) -> Result<Vec<Service>, String> {
+    parse_project_snapshot(bytes, project).map(|snapshot| snapshot.services)
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -226,6 +263,19 @@ fn parse_projects(bytes: &[u8]) -> Result<Vec<Project>, String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn parses_live_panes_from_existing_cli_contract() {
+        let bytes = br#"{"name":"api","panes":[{"id":"%1","pid":812,"title":"api shell","currentCommand":"cargo test","currentPath":"/src/api","ended":false},{"id":"%2","ended":true}],"services":[]}"#;
+        let snapshot = parse_project_snapshot(bytes, "api").unwrap();
+        assert_eq!(snapshot.panes.len(), 2);
+        assert_eq!(snapshot.panes[0].id, "%1");
+        assert_eq!(snapshot.panes[0].current_command, "cargo test");
+        assert_eq!(snapshot.panes[0].pid, 812);
+        assert!(snapshot.panes[1].ended);
+        assert_eq!(snapshot.panes[1].title, "");
+        assert!(parse_project_snapshot(bytes, "other").is_err());
+    }
 
     #[test]
     fn parses_project_services_from_existing_cli_contract() {
