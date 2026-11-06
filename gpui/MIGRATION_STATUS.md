@@ -17,6 +17,7 @@
 - [x] Added project start/stop through existing `lpm start/stop <name> --json` control CLI (no duplicate daemon/session owner), wired into native project detail view. Added action verb and invalid-name tests.
 - [x] Added `gpui/README.md` with build instructions and explicit limitations.
 - [x] Parsed agent status counts and worktree flags from the existing CLI JSON; native project detail now shows agent summary, remote/worktree type, and per-project config errors.
+- [x] Added service detail retrieval via `lpm project <name> --json` and service start/stop via `lpm service <service> <start|stop> -p <project> --json`; UI now renders real service rows with port/status and per-service controls. Verifies the full CLI acknowledgement (ok/project/service/op) and rejects wrong project/service/action in unit tests.
 - [x] Hardened start/stop control acknowledgement: require `ok: true` AND an exact matching project name, with unit tests for wrong project, rejected action and malformed JSON.
 
 ## Build and test status
@@ -38,10 +39,16 @@
 - GitHub Actions runs 42279310963, 42279301147, 42279205217 and 42279205007 all finished with failure status and a **cancelled** macOS job; no build/test steps ran. Job logs were unavailable (404 BlobNotFound). This is not evidence of a Rust compilation error. Check repository Actions policy, available macOS runners, billing and job cancellation rules; rerun after restoring runner execution.
 - This execution environment has no `cargo` installed and cannot reach GitHub directly via `git` (DNS resolution failed). Changes were pushed via the GitHub connector. Source compilation is still unverified.
 
+## Run 3 progress (2026-11-07)
+- Added service-level backend and GPUI controls in commits `ddb093b` and `6da51cc` on the migration branch.
+- Verified CLI command shape and JSON field contracts by reading `cli/src/project.rs` and `cli/src/service_cmd.rs` on the same branch.
+- `cargo` and `rustc` are absent in the current execution container; no compile/test success claimed. Service commands execute synchronously and may block the GPUI UI thread; move to background tasks once the crate compiles.
+- Next: obtain a successful macOS CI build, fix GPUI API/borrow errors, then make service requests asynchronous and implement terminal/PTY state updates.
+
 ## Next incremental milestone
 1. Run `cargo check` with Rust >=1.95 in an environment with GPUI's native build requirements. Fix actual compile errors before expanding functionality.
 2. Extract Tauri-independent backend functionality into a shared Rust crate or maintain a deliberate RPC bridge to the existing desktop daemon. Do **not** use duplicate ownership of sessions.
-3. Validate the new start/stop control in a running native build, then implement services, terminals, and agent status with matching state and update delivery.
+3. Validate project and service start/stop in a running native build; move CLI requests off the UI thread, then implement terminals and agent status with matching state and update delivery.
 4. Match sidebar, project view, tabs, typography, spacing, window chrome, keyboard interactions, and theming against actual Tauri screenshots.
 5. Expand to settings, automations, Git, connections, notes, notifications, multiple windows, mobile integration and remaining feature matrix.
 6. Rewrite root `README.md` for the new architecture **only after** GPUI can truthfully be presented as the desktop product. Audit any videos for obsolescence before removal.
