@@ -294,7 +294,7 @@ mod tests {
         assert!(disconnected.agent_status.is_none());
         let empty = parse_project_snapshot(br#"{"name":"api","agentStatus":[]}"#, "api").unwrap();
         assert!(empty.agent_status.unwrap().is_empty());
-        let data = br#"{"name":"api","agentStatus":[{"key":"agent-1","value":"Running","paneID":"%4","timestamp":123,"icon":"●","color":"blue"}]}"#;
+        let data = r#"{"name":"api","agentStatus":[{"key":"agent-1","value":"Running","paneID":"%4","timestamp":123,"icon":"●","color":"blue"}]}"#.as_bytes();
         let status = parse_project_snapshot(data, "api").unwrap().agent_status.unwrap();
         assert_eq!(status.len(), 1);
         assert_eq!(status[0].key, "agent-1");
