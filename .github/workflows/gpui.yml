@@ -1,0 +1,30 @@
+name: GPUI native prototype
+on:
+  push:
+    branches: [feature/gpui-native-migration]
+    paths:
+      - "gpui/**"
+      - ".github/workflows/gpui.yml"
+  pull_request:
+    paths:
+      - "gpui/**"
+      - ".github/workflows/gpui.yml"
+  workflow_dispatch:
+
+jobs:
+  native-rust:
+    name: GPUI cargo check and test (macOS)
+    runs-on: macos-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: gpui
+      - name: Rust versions
+        run: rustc --version && cargo --version
+      - name: Check GPUI crate
+        run: cargo check --manifest-path gpui/Cargo.toml
+      - name: Test GPUI crate
+        run: cargo test --manifest-path gpui/Cargo.toml
