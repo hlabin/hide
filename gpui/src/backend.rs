@@ -167,6 +167,7 @@ pub struct AgentStatus {
     #[serde(default)]
     pub color: String,
     #[serde(default)]
+    #[serde(rename = "paneID")]
     pub pane_id: String,
     #[serde(default)]
     pub timestamp: i64,
