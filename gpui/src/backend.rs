@@ -124,6 +124,8 @@ struct ProjectDetails {
     services: Vec<Service>,
     #[serde(default)]
     panes: Vec<Pane>,
+    #[serde(default)]
+    agent_status: Option<Vec<AgentStatus>>,
 }
 
 /// Live terminal pane metadata from `lpm project --json`.
@@ -148,7 +150,28 @@ pub struct Pane {
 pub struct ProjectSnapshot {
     pub services: Vec<Service>,
     pub panes: Vec<Pane>,
+    /// None means the desktop status socket is unreachable; Some(empty) means
+    /// it is reachable but has no active agent statuses.
+    pub agent_status: Option<Vec<AgentStatus>>,
 }
+
+/// Per-agent status from the existing lpm project JSON endpoint.
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AgentStatus {
+    pub key: String,
+    #[serde(default)]
+    pub value: String,
+    #[serde(default)]
+    pub icon: String,
+    #[serde(default)]
+    pub color: String,
+    #[serde(default)]
+    pub pane_id: String,
+    #[serde(default)]
+    pub timestamp: i64,
+}
+
 
 /// Read service details using the CLI's resolved project view, rather than
 /// guessing names from the aggregate lpm list output.
@@ -183,7 +206,7 @@ fn parse_project_snapshot(bytes: &[u8], project: &str) -> Result<ProjectSnapshot
     if details.name != project {
         return Err("lpm project returned a different project".into());
     }
-    Ok(ProjectSnapshot { services: details.services, panes: details.panes })
+    Ok(ProjectSnapshot { services: details.services, panes: details.panes, agent_status: details.agent_status })
 }
 
 #[cfg(test)]
@@ -263,6 +286,20 @@ fn parse_projects(bytes: &[u8]) -> Result<Vec<Project>, String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn agent_status_preserves_disconnected_vs_empty_and_parses_live_entries() {
+        let disconnected = parse_project_snapshot(br#"{"name":"api","agentStatus":null}"#, "api").unwrap();
+        assert!(disconnected.agent_status.is_none());
+        let empty = parse_project_snapshot(br#"{"name":"api","agentStatus":[]}"#, "api").unwrap();
+        assert!(empty.agent_status.unwrap().is_empty());
+        let data = br#"{"name":"api","agentStatus":[{"key":"agent-1","value":"Running","paneID":"%4","timestamp":123,"icon":"●","color":"blue"}]}"#;
+        let status = parse_project_snapshot(data, "api").unwrap().agent_status.unwrap();
+        assert_eq!(status.len(), 1);
+        assert_eq!(status[0].key, "agent-1");
+        assert_eq!(status[0].pane_id, "%4");
+        assert_eq!(status[0].timestamp, 123);
+    }
 
     #[test]
     fn parses_live_panes_from_existing_cli_contract() {
