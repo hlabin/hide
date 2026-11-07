@@ -118,6 +118,7 @@ pub struct Service {
 }
 
 #[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
 struct ProjectDetails {
     name: String,
     #[serde(default)]
