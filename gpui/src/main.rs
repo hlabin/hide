@@ -167,13 +167,13 @@ impl Render for HideApp {
                                     .child("PROJECTS")
                             )
                             .child(
-                                div().flex_1().overflow_y_scroll()
+                                div().flex_1().overflow_hidden()
                                     .children(self.projects.iter().map(|p| {
                                         let name = p.name.clone();
                                         let picked = self.selected.as_deref() == Some(name.as_str());
                                         let label = if p.label.is_empty() { p.name.clone() } else { p.label.clone() };
                                         div()
-                                            .id(("project", name.clone()))
+                                            .id(format!("project:{}", name))
                                             .mx_2().mb_1().px_3().py_2().rounded_md()
                                             .cursor_pointer()
                                             .bg(rgb(if picked { c.active } else { c.sidebar }))
@@ -264,7 +264,7 @@ impl Render for HideApp {
                                             .child(format!("{}{}", service.name, port))
                                     )
                                     .child(
-                                        div().id(("service-control", service.name.clone()))
+                                        div().id(format!("service-control:{}", service.name))
                                             .cursor_pointer().rounded_md().bg(rgb(c.hover))
                                             .px_2().py_1()
                                             .child(if running { "Stop" } else { "Start" })
