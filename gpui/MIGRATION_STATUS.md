@@ -69,3 +69,11 @@
 - For transient GitHub failures, retry a few times and refresh file SHAs before updates.
 - If a build/permission/environment step fails, record its exact cause, pursue another safe independent task, and resume later.
 - Never claim an unrun test passed or delete working Tauri code prematurely.
+
+## Run 5 progress (2026-11-07)
+- Added typed detailed agent status from the existing `lpm project <name> --json` contract, preserving the distinction between disconnected status socket (`null`) and reachable-but-empty (`[]`).
+- Added native GPUI per-agent activity rows (agent key, status and associated pane ID), with explicit unavailable/empty states.
+- Added parser tests for status entries, `paneID` mapping and disconnected/empty behavior; commits `68654a5`, `11c11e0`, `e33b601`.
+- Verified JSON field names by inspecting `cli/src/project.rs` on the migration branch. These are source-level checks, not compilation or runtime tests.
+- Latest observed macOS CI runs `42311087065`, `42311080193`, `42311067555`, `42311060187` were completed with failure; inspect job conclusions/logs before attributing cause. No passing build is claimed.
+- Next: establish a working `cargo check` and `cargo test` runner; resolve compiler errors, then move blocking CLI calls to background tasks and add PTY I/O integration.
