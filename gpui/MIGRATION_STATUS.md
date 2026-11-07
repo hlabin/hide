@@ -77,3 +77,11 @@
 - Verified JSON field names by inspecting `cli/src/project.rs` on the migration branch. These are source-level checks, not compilation or runtime tests.
 - Latest observed macOS CI runs `42311087065`, `42311080193`, `42311067555`, `42311060187` were completed with failure; inspect job conclusions/logs before attributing cause. No passing build is claimed.
 - Next: establish a working `cargo check` and `cargo test` runner; resolve compiler errors, then move blocking CLI calls to background tasks and add PTY I/O integration.
+
+
+## Run 6 progress (2026-11-07)
+- Retrieved real GitHub Actions macOS job logs for run [42317136411](https://github.com/hlabin/hide/actions/runs/42317136411): checkout, Rust installation, dependency compilation all succeeded; `cargo check` failed on **four source errors**, not runner unavailability.
+- Fixed non-ASCII character in a raw byte-string test fixture by converting a Unicode raw string with `.as_bytes()` (commit `93e5c3b`).
+- Replaced unsupported `overflow_y_scroll()` with `overflow_hidden()` (temporary non-scrollable fallback), and invalid `(&str, String)` element IDs with formatted string IDs (commit `9051f32`).
+- The previous CI errors are addressed at source level, but these commits **have not yet passed** CI. New checks were queued as of this update: [42322893995](https://github.com/hlabin/hide/actions/runs/42322893995).
+- Next: inspect the new macOS `cargo check` output and fix any additional compiler/borrow errors; restore proper scrollable project list using a supported GPUI API, then proceed to non-blocking CLI operations and native PTY integration. Preserve Tauri and main.
