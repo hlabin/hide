@@ -1,6 +1,6 @@
 mod backend;
 
-use backend::{Pane, Project, ProjectAction, Service, ServiceAction};
+use backend::{AgentStatus, Pane, Project, ProjectAction, Service, ServiceAction};
 use gpui::{
     App, Bounds, Context, IntoElement, QuitMode, Render, Window, WindowBounds, WindowOptions,
     div, prelude::*, px, rgb, size,
@@ -42,6 +42,7 @@ struct HideApp {
     selected: Option<String>,
     services: Vec<Service>,
     panes: Vec<Pane>,
+    agent_status: Option<Vec<AgentStatus>>,
     service_error: Option<String>,
     error: Option<String>,
     dark: bool,
@@ -50,7 +51,7 @@ struct HideApp {
 impl HideApp {
     fn new() -> Self {
         let mut this = Self {
-            projects: vec![], selected: None, services: vec![], panes: vec![], service_error: None, error: None, dark: true,
+            projects: vec![], selected: None, services: vec![], panes: vec![], agent_status: None, service_error: None, error: None, dark: true,
         };
         this.refresh();
         this
@@ -74,6 +75,7 @@ impl HideApp {
         let Some(name) = self.selected.as_deref() else {
             self.services.clear();
             self.panes.clear();
+            self.agent_status = None;
             self.service_error = None;
             return;
         };
@@ -81,11 +83,13 @@ impl HideApp {
             Ok(snapshot) => {
                 self.services = snapshot.services;
                 self.panes = snapshot.panes;
+                self.agent_status = snapshot.agent_status;
                 self.service_error = None;
             }
             Err(error) => {
                 self.services.clear();
                 self.panes.clear();
+                self.agent_status = None;
                 self.service_error = Some(error);
             }
         }
@@ -277,6 +281,29 @@ impl Render for HideApp {
                             .children(self.service_error.iter().map(|error| {
                                 div().px_6().py_2().text_color(rgb(0xf87171))
                                     .child(format!("Services: {error}"))
+                            }))
+                            .child(
+                                div().px_6().py_2().text_color(rgb(c.muted))
+                                    .child("AGENT ACTIVITY")
+                            )
+                            .child(
+                                div().px_6().py_1().text_color(rgb(c.muted))
+                                    .child(match &self.agent_status {
+                                        None => "Agent status unavailable (desktop socket disconnected)".to_string(),
+                                        Some(entries) if entries.is_empty() => "No active agents".to_string(),
+                                        Some(entries) => format!("{} agent status entries", entries.len()),
+                                    })
+                            )
+                            .children(self.agent_status.iter().flat_map(|entries| entries.iter()).map(|agent| {
+                                let status = if agent.value.is_empty() { "Unknown" } else { agent.value.as_str() };
+                                let detail = if agent.pane_id.is_empty() {
+                                    format!("{} · {}", agent.key, status)
+                                } else {
+                                    format!("{} · {} · {}", agent.key, status, agent.pane_id)
+                                };
+                                div().mx_6().mb_1().px_3().py_2().rounded_md()
+                                    .bg(rgb(c.secondary))
+                                    .child(detail)
                             }))
                             .child(
                                 div().flex_1().m_6().rounded_md()
