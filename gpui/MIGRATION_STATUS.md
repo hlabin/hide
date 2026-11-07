@@ -85,3 +85,10 @@
 - Replaced unsupported `overflow_y_scroll()` with `overflow_hidden()` (temporary non-scrollable fallback), and invalid `(&str, String)` element IDs with formatted string IDs (commit `9051f32`).
 - The previous CI errors are addressed at source level, but these commits **have not yet passed** CI. New checks were queued as of this update: [42322893995](https://github.com/hlabin/hide/actions/runs/42322893995).
 - Next: inspect the new macOS `cargo check` output and fix any additional compiler/borrow errors; restore proper scrollable project list using a supported GPUI API, then proceed to non-blocking CLI operations and native PTY integration. Preserve Tauri and main.
+
+
+## Run 7 progress (2026-11-07)
+- Inspected macOS CI run [42322913040](https://github.com/hlabin/hide/actions/runs/42322913040). **cargo check passed**; `cargo test` compiled successfully, then ran 12 tests: 11 passed, 1 failed.
+- Root cause: `ProjectDetails` lacked `#[serde(rename_all = "camelCase")]`, so the real CLI's `agentStatus` property was silently ignored and deserialized as `None`. The failing test caught this, and actual live agent rows would also have been missing.
+- Fixed serde mapping in commit `5809fd0`; this is a source-level fix pending CI test confirmation.
+- Next: confirm all 12 tests pass in the new macOS CI run; then move blocking CLI operations off GPUI UI thread and restore scrollable project list. Native PTY I/O and screenshot parity remain outstanding.
